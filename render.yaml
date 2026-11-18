@@ -1,0 +1,59 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. CivicAI Node.js Backend Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: civicai-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Set to your Neon PostgreSQL connection string in the Render Dashboard
+      - key: JWT_SECRET
+        generateValue: true # Render automatically generates a secure cryptographic string
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_URL
+        sync: false # Set to your Vercel frontend URL, e.g. https://civicai.vercel.app
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: civicai-ai-service
+          property: host
+
+  # ----------------------------------------------------------------------------
+  # 2. CivicAI Python AI Intelligence Microservice
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: civicai-ai-service
+    env: python
+    plan: free
+    rootDir: ai-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false # Set your Google Gemini API key in the Render Dashboard
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_ENABLED
+        value: "true"
+      - key: GEMINI_TIMEOUT_SECONDS
+        value: "30"
+      - key: GEMINI_MAX_ATTEMPTS
+        value: "3"
+      - key: GEMINI_BASE_DELAY_SECONDS
+        value: "1.0"
+      - key: GEMINI_MAX_DELAY_SECONDS
+        value: "10.0"
+      - key: GEMINI_JITTER
+        value: "true"

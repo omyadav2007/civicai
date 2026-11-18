@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  CITIZEN
+  ADMIN
+}
+
+enum Department {
+  ROAD_MAINTENANCE
+  SANITATION
+  WATER_SUPPLY
+  DRAINAGE
+  ELECTRICITY
+  PUBLIC_WORKS
+}
+
+enum ComplaintCategory {
+  POTHOLE
+  GARBAGE
+  WATER_LEAKAGE
+  DRAINAGE
+  STREETLIGHT
+  ROAD_DAMAGE
+  OTHER
+  OVERFLOWING_DUSTBIN
+  ILLEGAL_GARBAGE_DUMPING
+  UNCOLLECTED_GARBAGE
+  GARBAGE_BLOCKING_DRAIN
+  OPEN_GARBAGE_DUMP
+  MISSED_GARBAGE_COLLECTION
+  GENERAL_WASTE_MANAGEMENT
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ComplaintSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  PENDING
+}
+
+enum AssignmentMethod {
+  AI_AUTO
+  RULE_FALLBACK
+  MANUAL
+}
+
+enum AiProcessingStatus {
+  PENDING
+  COMPLETED
+  FALLBACK_COMPLETED
+  FAILED
+}
+
+model User {
+  id            String                   @id @default(uuid())
+  name          String
+  email         String                   @unique
+  passwordHash  String
+  role          Role                     @default(CITIZEN)
+  complaints    Complaint[]
+  adminNotes    AdminNote[]
+  statusChanges ComplaintStatusHistory[]
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([email])
+}
+
+model Complaint {
+  id            String                   @id @default(uuid())
+  title         String
+  description   String
+  category      ComplaintCategory
+  severity      ComplaintSeverity        @default(PENDING)
+  priority      ComplaintPriority        @default(MEDIUM)
+  status        ComplaintStatus          @default(SUBMITTED)
+  department    Department?
+  assignmentMethod    AssignmentMethod?    @default(AI_AUTO)
+  assignedAt          DateTime?            @default(now())
+  assignmentReason    String?
+  requiresHumanReview Boolean              @default(false)
+  latitude      Decimal?                 @db.Decimal(10, 7)
+  longitude     Decimal?                 @db.Decimal(10, 7)
+  address       String
+  citizenId     String
+  citizen       User                     @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+  images        ComplaintImage[]
+  statusHistory ComplaintStatusHistory[]
+  adminNotes    AdminNote[]
+  aiAnalysis    AiAnalysis?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([citizenId])
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@index([severity])
+  @@index([department])
+  @@index([createdAt])
+}
+
+model ComplaintImage {
+  id          String    @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  imageUrl    String
+  imageType   String
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+}
+
+model ComplaintStatusHistory {
+  id             String           @id @default(uuid())
+  complaintId    String
+  complaint      Complaint        @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  previousStatus ComplaintStatus?
+  newStatus      ComplaintStatus
+  changedById    String?
+  changedBy      User?            @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  notes          String?
+  changedAt      DateTime         @default(now())
+
+  @@index([complaintId])
+  @@index([changedById])
+}
+
+model AdminNote {
+  id          String    @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  adminId     String
+  admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  note        String
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+  @@index([adminId])
+}
+
+model AiAnalysis {
+  id                    String             @id @default(uuid())
+  complaintId           String             @unique
+  complaint             Complaint          @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  predictedCategory     ComplaintCategory
+  categoryConfidence    Float
+  categoryExplanation   String?
+  estimatedSeverity     ComplaintSeverity
+  severityScore         Float?
+  severityExplanation   String?
+  priorityScore         Float
+  calculatedPriority    ComplaintPriority
+  priorityExplanation   String?
+  duplicateCandidateIds String[]           @default([])
+  duplicateDetails      Json?
+  modelMetadata         Json?
+  provider              String?            @default("gemini-vision")
+  modelName             String?
+  visualDescription     String?
+  visualEvidence        String[]           @default([])
+  processingStatus      AiProcessingStatus @default(COMPLETED)
+  requiresHumanReview   Boolean            @default(false)
+  uncertaintyReason     String?
+  fallbackCategory      ComplaintCategory?
+  correctedDepartment   Department?
+  isCorrected           Boolean            @default(false)
+  correctedCategory     ComplaintCategory?
+  correctedSeverity     ComplaintSeverity?
+  correctedBy           String?
+  correctedAt           DateTime?
+  correctionNotes       String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([complaintId])
+}
